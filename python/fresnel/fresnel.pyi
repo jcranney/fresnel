@@ -1,0 +1,13 @@
+"""
+A Python module implemented in Rust.
+"""
+
+from _typeshed import Incomplete
+from typing import final
+
+@final
+class Fft2Planner:
+    def __new__(cls, /, nrows: int, ncols: int) -> Fft2Planner: ...
+    def fft2_numpy_inplace(self, /, array: Incomplete) -> None: ...
+    def ncols(self, /) -> int: ...
+    def nrows(self, /) -> int: ...
