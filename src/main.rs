@@ -14,11 +14,11 @@ fn main() {
             input.push(v);
         }
     }
-    let mut planner = Fft2Planner::new(1024, 1024);
+    let mut planner = Fft2Planner::forward_planner(1024, 1024);
 
     let t1 = Instant::now();
     planner.load_array(&input);
-    planner.fft2_inplace();
+    planner.process_inplace();
     let elapsed = t1.elapsed();
     println!("{}", planner.read_array()[0]);
     
