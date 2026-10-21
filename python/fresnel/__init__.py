@@ -10,25 +10,25 @@ class Planner:
         self.fft2_planner = Fft2Planner.forward_planner(shape[0], shape[1])
         self.ifft2_planner = Fft2Planner.inverse_planner(shape[0], shape[1])
 
-    def fft2(self, array: NDArray[np.complex128]) -> NDArray[np.complex128]:
+    def fft2(self, array: NDArray[np.complexfloating]) -> NDArray[np.complexfloating]:
         tmp = array.copy()
         self.fft2_planner.process_numpy_inplace(tmp)
         return tmp
 
-    def ifft2(self, array: NDArray[np.complex128]) -> NDArray[np.complex128]:
+    def ifft2(self, array: NDArray[np.complexfloating]) -> NDArray[np.complexfloating]:
         tmp = array.copy()
         self.ifft2_planner.process_numpy_inplace(tmp)
         return tmp
 
-    def fft2_inplace(self, array: NDArray[np.complex128]):
+    def fft2_inplace(self, array: NDArray[np.complexfloating]):
         self.fft2_planner.process_numpy_inplace(array)
 
-    def ifft2_inplace(self, array: NDArray[np.complex128]):
+    def ifft2_inplace(self, array: NDArray[np.complexfloating]):
         self.ifft2_planner.process_numpy_inplace(array)
 
     def propagate_inplace(
         self,
-        wave: NDArray[np.complex128],
+        wave: NDArray[np.complexfloating],
         dz: float,
         wavelength: float,
         wavesize: Tuple[float, float],
