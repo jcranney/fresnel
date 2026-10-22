@@ -57,7 +57,7 @@ pub mod fresnel {
         }
         pub fn process_inplace(&mut self, data: &mut [Complex64]) {
             // do fft of each row
-            data.par_chunks_mut(self.ncols).for_each(|row| {
+            data.chunks_mut(self.ncols).for_each(|row| {
                 self.fft_rows.process(row);
             });
 
@@ -65,7 +65,7 @@ pub mod fresnel {
             transpose::transpose(data, &mut self.buffer, self.ncols, self.nrows);
 
             // do fft of each column of intermediate buffer
-            self.buffer.par_chunks_mut(self.nrows).for_each(|col| {
+            self.buffer.chunks_mut(self.nrows).for_each(|col| {
                 self.fft_cols.process(col);
                 if let Some(scale) = self.scale {
                     col.iter_mut().for_each(|x| *x *= scale);
