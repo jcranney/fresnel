@@ -57,7 +57,7 @@ pub mod fresnel {
         }
         pub fn process_inplace(&mut self, data: &mut [Complex64]) {
             // do fft of each row
-            data.chunks_mut(self.ncols).for_each(|row| {
+            data.par_chunks_mut(self.ncols).for_each(|row| {
                 self.fft_rows.process(row);
             });
 
@@ -65,7 +65,7 @@ pub mod fresnel {
             transpose::transpose(data, &mut self.buffer, self.ncols, self.nrows);
 
             // do fft of each column of intermediate buffer
-            self.buffer.chunks_mut(self.nrows).for_each(|col| {
+            self.buffer.par_chunks_mut(self.nrows).for_each(|col| {
                 self.fft_cols.process(col);
                 if let Some(scale) = self.scale {
                     col.iter_mut().for_each(|x| *x *= scale);
@@ -81,16 +81,16 @@ pub mod fresnel {
     /// efficient `fft2`, `ifft2`, and `ang_spec` method acting inplace on
     /// numpy complex128 arrays.
     #[pyclass]
-    struct InplacePropagator {
-        forward_planner: Fft2Planner,
-        inverse_planner: Fft2Planner,
-        shape: (usize, usize),
+    pub struct InplacePropagator {
+        pub forward_planner: Fft2Planner,
+        pub inverse_planner: Fft2Planner,
+        pub shape: (usize, usize),
     }
 
     #[pymethods]
     impl InplacePropagator {
         #[new]
-        fn new(shape: (usize, usize)) -> Self {
+        pub fn new(shape: (usize, usize)) -> Self {
             Self {
                 forward_planner: Fft2Planner::forward_planner(shape.0, shape.1),
                 inverse_planner: Fft2Planner::inverse_planner(shape.0, shape.1),
@@ -98,19 +98,19 @@ pub mod fresnel {
             }
         }
 
-        fn fft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
+        pub fn fft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
             // perform fft2
             self.forward_planner.process_inplace(array.as_slice_mut()?);
             Ok(())
         }
 
-        fn ifft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
+        pub fn ifft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
             // perform ifft2
             self.inverse_planner.process_inplace(array.as_slice_mut()?);
             Ok(())
         }
 
-        fn ang_spec(
+        pub fn ang_spec(
             &mut self,
             mut array: PyReadwriteArray2<Complex64>,
             dz: f64,
@@ -131,7 +131,7 @@ pub mod fresnel {
         }
     }
 
-    fn ang_spec_transfer_function_multiply_inplace(
+    pub fn ang_spec_transfer_function_multiply_inplace(
         shape: (usize, usize),
         array_slice: &mut [Complex64],
         dz: f64,
@@ -143,8 +143,9 @@ pub mod fresnel {
         let k = 2.0 * PI / wavelength;
         let alpha_s = 1.0 / wavesize_xy.0;
         let beta_s = 1.0 / wavesize_xy.1;
+        let prefactor = Complex64::i() * -PI.powf(2.0) * 2.0 / k * dz;
         array_slice
-            .iter_mut()
+            .par_iter_mut()
             .enumerate()
             .map(|(i, z)| {
                 (
@@ -158,11 +159,10 @@ pub mod fresnel {
                 )
             })
             .for_each(|((x, y), z)| {
-                let p = (x * alpha_s).powf(2.0);
-                let q = (y * beta_s).powf(2.0);
+                let p = (x * alpha_s)*(x * alpha_s);
+                let q = (y * beta_s)*(y * beta_s);
                 let s = p + q;
-                let phi = -PI.powf(2.0) * 2.0 / k * dz * s;
-                let f = (Complex64::i() * phi).exp();
+                let f = (prefactor * s).exp();
                 *z *= f;
             });
     }
