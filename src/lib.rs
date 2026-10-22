@@ -16,8 +16,7 @@ pub mod fresnel {
         nrows: usize,
         fft_rows: Arc<dyn Fft<f64>>,
         fft_cols: Arc<dyn Fft<f64>>,
-        buffer_a: Vec<Complex64>,
-        buffer_b: Vec<Complex64>,
+        buffer: Vec<Complex64>,
         scale: Option<f64>,
     }
 
@@ -26,15 +25,13 @@ pub mod fresnel {
             let mut planner = FftPlanner::<f64>::new();
             let fft_rows = planner.plan_fft_forward(ncols);
             let fft_cols = planner.plan_fft_forward(nrows);
-            let buffer_a = vec![Complex64::ZERO; nrows * ncols];
-            let buffer_b = vec![Complex64::ZERO; ncols * nrows];
+            let buffer = vec![Complex64::ZERO; ncols * nrows];
             Self {
                 fft_rows,
                 fft_cols,
                 ncols,
                 nrows,
-                buffer_a,
-                buffer_b,
+                buffer,
                 scale: None,
             }
         }
@@ -42,23 +39,15 @@ pub mod fresnel {
             let mut planner = FftPlanner::<f64>::new();
             let fft_rows = planner.plan_fft_inverse(ncols);
             let fft_cols = planner.plan_fft_inverse(nrows);
-            let buffer_a = vec![Complex64::ZERO; nrows * ncols];
-            let buffer_b = vec![Complex64::ZERO; ncols * nrows];
+            let buffer = vec![Complex64::ZERO; ncols * nrows];
             Self {
                 fft_rows,
                 fft_cols,
                 ncols,
                 nrows,
-                buffer_a,
-                buffer_b,
+                buffer,
                 scale: Some(1.0 / (nrows * ncols) as f64),
             }
-        }
-        pub fn load_array(&mut self, array: &[Complex64]) {
-            self.buffer_a.copy_from_slice(array);
-        }
-        pub fn read_array(&self) -> &[Complex64] {
-            &self.buffer_a
         }
         pub fn ncols(&self) -> usize {
             self.ncols
@@ -66,17 +55,17 @@ pub mod fresnel {
         pub fn nrows(&self) -> usize {
             self.nrows
         }
-        pub fn process_inplace(&mut self) {
+        pub fn process_inplace(&mut self, data: &mut [Complex64]) {
             // do fft of each row
-            self.buffer_a.par_chunks_mut(self.ncols).for_each(|row| {
-                self.fft_rows.process(row); //, &mut scratch);
+            data.par_chunks_mut(self.ncols).for_each(|row| {
+                self.fft_rows.process(row);
             });
 
             // transpose to allow efficient fourier transforming
-            transpose::transpose(&self.buffer_a, &mut self.buffer_b, self.ncols, self.nrows);
+            transpose::transpose(data, &mut self.buffer, self.ncols, self.nrows);
 
             // do fft of each column of intermediate buffer
-            self.buffer_b.par_chunks_mut(self.nrows).for_each(|col| {
+            self.buffer.par_chunks_mut(self.nrows).for_each(|col| {
                 self.fft_cols.process(col);
                 if let Some(scale) = self.scale {
                     col.iter_mut().for_each(|x| *x *= scale);
@@ -84,7 +73,7 @@ pub mod fresnel {
             });
 
             // transpose to get back to original layout
-            transpose::transpose(&self.buffer_b, &mut self.buffer_a, self.nrows, self.ncols);
+            transpose::transpose(&self.buffer, data, self.nrows, self.ncols);
         }
     }
 
@@ -110,27 +99,14 @@ pub mod fresnel {
         }
 
         fn fft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
-            // load up data into planner buffer
-            self.forward_planner.load_array(array.as_slice()?);
             // perform fft2
-            self.forward_planner.process_inplace();
-            // read back data from buffer
-            array
-                .as_slice_mut()?
-                .copy_from_slice(self.forward_planner.read_array());
+            self.forward_planner.process_inplace(array.as_slice_mut()?);
             Ok(())
         }
 
         fn ifft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
-            // load up data into planner buffer
-            self.inverse_planner.load_array(array.as_slice()?);
             // perform ifft2
-
-            self.inverse_planner.process_inplace();
-            // read back data from buffer
-            array
-                .as_slice_mut()?
-                .copy_from_slice(self.inverse_planner.read_array());
+            self.inverse_planner.process_inplace(array.as_slice_mut()?);
             Ok(())
         }
 
@@ -141,61 +117,53 @@ pub mod fresnel {
             wavelength: f64,
             wavesize_xy: (f64, f64),
         ) -> PyResult<()> {
-            self.forward_planner.load_array(array.as_slice()?);
-            self.forward_planner.process_inplace();
-            array
-                .as_slice_mut()?
-                .copy_from_slice(self.forward_planner.read_array());
-            self.ang_spec_transfer_function_multiply_inplace(
+            self.forward_planner.process_inplace(array.as_slice_mut()?);
+
+            ang_spec_transfer_function_multiply_inplace(
+                self.shape,
                 array.as_slice_mut()?,
                 dz,
                 wavelength,
                 wavesize_xy,
             );
-            self.inverse_planner.load_array(array.as_slice()?);
-            self.inverse_planner.process_inplace();
-            array
-                .as_slice_mut()?
-                .copy_from_slice(self.inverse_planner.read_array());
+            self.inverse_planner.process_inplace(array.as_slice_mut()?);
             Ok(())
         }
     }
 
-    impl InplacePropagator {
-        fn ang_spec_transfer_function_multiply_inplace(
-            &self,
-            array_slice: &mut [Complex64],
-            dz: f64,
-            wavelength: f64,
-            wavesize_xy: (f64, f64),
-        ) {
-            let nrows = self.shape.0;
-            let ncols = self.shape.1;
-            let k = 2.0 * PI / wavelength;
-            let alpha_s = 1.0 / wavesize_xy.0;
-            let beta_s = 1.0 / wavesize_xy.1;
-            array_slice
-                .iter_mut()
-                .enumerate()
-                .map(|(i, z)| {
+    fn ang_spec_transfer_function_multiply_inplace(
+        shape: (usize, usize),
+        array_slice: &mut [Complex64],
+        dz: f64,
+        wavelength: f64,
+        wavesize_xy: (f64, f64),
+    ) {
+        let nrows = shape.0;
+        let ncols = shape.1;
+        let k = 2.0 * PI / wavelength;
+        let alpha_s = 1.0 / wavesize_xy.0;
+        let beta_s = 1.0 / wavesize_xy.1;
+        array_slice
+            .iter_mut()
+            .enumerate()
+            .map(|(i, z)| {
+                (
                     (
-                        (
-                            ((((i % ncols) + (ncols / 2)) % ncols) as isize - (ncols / 2) as isize)
-                                as f64,
-                            ((((i / ncols) + (nrows / 2)) % nrows) as isize - (nrows / 2) as isize)
-                                as f64,
-                        ),
-                        z,
-                    )
-                })
-                .for_each(|((x, y), z)| {
-                    let p = (x * alpha_s).powf(2.0);
-                    let q = (y * beta_s).powf(2.0);
-                    let s = p + q;
-                    let phi = -PI.powf(2.0) * 2.0 / k * dz * s;
-                    let f = (Complex64::i() * phi).exp();
-                    *z *= f;
-                });
-        }
+                        ((((i % ncols) + (ncols / 2)) % ncols) as isize - (ncols / 2) as isize)
+                            as f64,
+                        ((((i / ncols) + (nrows / 2)) % nrows) as isize - (nrows / 2) as isize)
+                            as f64,
+                    ),
+                    z,
+                )
+            })
+            .for_each(|((x, y), z)| {
+                let p = (x * alpha_s).powf(2.0);
+                let q = (y * beta_s).powf(2.0);
+                let s = p + q;
+                let phi = -PI.powf(2.0) * 2.0 / k * dz * s;
+                let f = (Complex64::i() * phi).exp();
+                *z *= f;
+            });
     }
 }
