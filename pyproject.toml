@@ -3,7 +3,7 @@ requires = ["maturin>=1.15,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "fresnel"
+name = "fresnel-prop"
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Rust",
