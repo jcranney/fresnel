@@ -63,7 +63,7 @@ state = State(arr)
 
 def update(i, state: State):
     state.z += DZ
-    state.propagator.ang_spec_prop(
+    state.propagator.ang_spec(
         state.arr,
         DZ,
         WAVELENGTH,

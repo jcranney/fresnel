@@ -89,7 +89,7 @@ pub mod fresnel {
     }
 
     /// The `InplacePropagator` object is the main python interface, exposing an
-    /// efficient `fft2`, `ifft2`, and `ang_spec_prop` method acting inplace on
+    /// efficient `fft2`, `ifft2`, and `ang_spec` method acting inplace on
     /// numpy complex128 arrays.
     #[pyclass]
     struct InplacePropagator {
@@ -134,7 +134,7 @@ pub mod fresnel {
             Ok(())
         }
 
-        fn ang_spec_prop(
+        fn ang_spec(
             &mut self,
             mut array: PyReadwriteArray2<Complex64>,
             dz: f64,
