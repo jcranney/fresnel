@@ -1,10 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import time
-from numpy.typing import NDArray
-from matplotlib.animation import FuncAnimation
-from itertools import count
-from fresnel import InplacePropagation
+from fresnel import InplacePropagator
 
 for NSAMPLE in [2**a for a in range(4, 12)]:
     # lets do everything in mm to get a reasonable numerical range
@@ -31,9 +27,7 @@ for NSAMPLE in [2**a for a in range(4, 12)]:
     _arr = ((rr < BEAM_DIAM / 2) * 1.0).astype(np.complex128)
     arr = _arr.reshape([NSAMPLE, NSAMPLE])
 
-    propagator = InplacePropagation(
-        WAVELENGTH, (SUPPORT_WIDTH, SUPPORT_WIDTH), (NSAMPLE, NSAMPLE)
-    )
+    propagator = InplacePropagator((NSAMPLE, NSAMPLE))
 
     phi = 100 * np.exp(-((xx - 2e3) ** 2 + (yy - 3e3) ** 2) / 1e3**2)
     modifier = np.exp(-1j * phi).reshape([NSAMPLE, NSAMPLE])
@@ -41,8 +35,14 @@ for NSAMPLE in [2**a for a in range(4, 12)]:
 
     t1 = time.time()
     for _ in range(100):
-        propagator.ang_spec_prop(arr, 1e6)
+        propagator.ang_spec_prop(arr, DZ, WAVELENGTH, (SUPPORT_WIDTH, SUPPORT_WIDTH))
     t2 = time.time()
 
     print(f"NSAMPLE: {NSAMPLE}, {(t2-t1)/100:0.3e} sec per iteration")
-        
+
+    t1 = time.time()
+    for _ in range(100):
+        propagator.ang_spec_prop(arr, DZ, WAVELENGTH, (SUPPORT_WIDTH, SUPPORT_WIDTH))
+    t2 = time.time()
+
+    print(f"NSAMPLE: {NSAMPLE}, {(t2-t1)/100:0.3e} sec per iteration")
