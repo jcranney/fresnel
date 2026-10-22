@@ -109,29 +109,29 @@ pub mod fresnel {
             }
         }
 
-        fn fft2(&mut self, mut array: PyReadwriteArray2<Complex64>) {
+        fn fft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
             // load up data into planner buffer
-            self.forward_planner.load_array(array.as_slice().unwrap());
+            self.forward_planner.load_array(array.as_slice()?);
             // perform fft2
             self.forward_planner.process_inplace();
             // read back data from buffer
             array
-                .as_slice_mut()
-                .unwrap()
+                .as_slice_mut()?
                 .copy_from_slice(self.forward_planner.read_array());
+            Ok(())
         }
 
-        fn ifft2(&mut self, mut array: PyReadwriteArray2<Complex64>) {
+        fn ifft2(&mut self, mut array: PyReadwriteArray2<Complex64>) -> PyResult<()> {
             // load up data into planner buffer
-            self.inverse_planner.load_array(array.as_slice().unwrap());
+            self.inverse_planner.load_array(array.as_slice()?);
             // perform ifft2
 
             self.inverse_planner.process_inplace();
             // read back data from buffer
             array
-                .as_slice_mut()
-                .unwrap()
+                .as_slice_mut()?
                 .copy_from_slice(self.inverse_planner.read_array());
+            Ok(())
         }
 
         fn ang_spec_prop(
@@ -140,25 +140,24 @@ pub mod fresnel {
             dz: f64,
             wavelength: f64,
             wavesize_xy: (f64, f64),
-        ) {
-            self.forward_planner.load_array(array.as_slice().unwrap());
+        ) -> PyResult<()> {
+            self.forward_planner.load_array(array.as_slice()?);
             self.forward_planner.process_inplace();
             array
-                .as_slice_mut()
-                .unwrap()
+                .as_slice_mut()?
                 .copy_from_slice(self.forward_planner.read_array());
             self.ang_spec_transfer_function_multiply_inplace(
-                array.as_slice_mut().unwrap(),
+                array.as_slice_mut()?,
                 dz,
                 wavelength,
                 wavesize_xy,
             );
-            self.inverse_planner.load_array(array.as_slice().unwrap());
+            self.inverse_planner.load_array(array.as_slice()?);
             self.inverse_planner.process_inplace();
             array
-                .as_slice_mut()
-                .unwrap()
+                .as_slice_mut()?
                 .copy_from_slice(self.inverse_planner.read_array());
+            Ok(())
         }
     }
 

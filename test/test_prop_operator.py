@@ -38,11 +38,11 @@ for NSAMPLE in [2**a for a in range(4, 12)]:
         propagator.ang_spec_prop(arr, DZ, WAVELENGTH, (SUPPORT_WIDTH, SUPPORT_WIDTH))
     t2 = time.time()
 
-    print(f"NSAMPLE: {NSAMPLE}, {(t2-t1)/100:0.3e} sec per iteration")
+    print(f"ANG_SPEC_PROP | {NSAMPLE:5} | {(t2-t1)/100:10.3e} sec/it")
 
     t1 = time.time()
     for _ in range(100):
-        propagator.ang_spec_prop(arr, DZ, WAVELENGTH, (SUPPORT_WIDTH, SUPPORT_WIDTH))
+        propagator.fft2(arr)
     t2 = time.time()
 
-    print(f"NSAMPLE: {NSAMPLE}, {(t2-t1)/100:0.3e} sec per iteration")
+    print(f"FFT2          | {NSAMPLE:5} | {(t2-t1)/100:10.3e} sec/it")

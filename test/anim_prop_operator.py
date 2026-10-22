@@ -22,25 +22,17 @@ _xx, _yy = np.meshgrid(
     _y,
     indexing="xy",
 )
-print(_x)
 xx = _xx.flatten()
 yy = _yy.flatten()
 
 rr = (xx**2 + yy**2) ** 0.5
-# plt.matshow(rr.reshape((NSAMPLE,NSAMPLE)))
-# plt.colorbar()
-# plt.show()
-# exit()
 
 _arr = ((rr < BEAM_DIAM / 2) * 1.0).astype(np.complex128)
 arr = _arr.reshape([NSAMPLE, NSAMPLE])
 
 propagator = InplacePropagator((NSAMPLE, NSAMPLE))
 
-# phi = -2 * np.pi / WAVELENGTH * rr**2 / (2 * FOCAL_LEN) / 1e3
 phi = 100 * np.exp(-((xx - 2e3) ** 2 + (yy - 3e3) ** 2) / 2e3**2)
-# plt.matshow(phi.reshape((NSAMPLE,NSAMPLE)))
-# plt.show()
 modifier = np.exp(-1j * phi).reshape([NSAMPLE, NSAMPLE])
 arr *= modifier
 
